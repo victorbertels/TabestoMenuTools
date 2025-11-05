@@ -12,14 +12,14 @@ st.set_page_config(
 
 st.title("🍽️ Tabesto Menu Converter")
 st.markdown("""
-Upload your **PRODUCT EXPORT** and **IMAGE EXPORT** JSON files to convert them into a TAB_DLV import template.
+Upload your **PRODUCT IMPORT** and **IMAGE EXPORT** JSON files to convert them into a TAB_DLV import template.
 """)
 
 # File uploaders
 col1, col2 = st.columns(2)
 
 with col1:
-    product_file = st.file_uploader("📄 Upload PRODUCT EXPORT.json", type=['json'])
+    product_file = st.file_uploader("📄 Upload PRODUCT IMPORT.json", type=['json'])
 
 with col2:
     image_file = st.file_uploader("🖼️ Upload IMAGE EXPORT.json", type=['json'])
@@ -138,6 +138,7 @@ if product_file and image_file:
                     row['Producttype'] = 'PRODUCT'
                     row['isCombo'] = 'TRUE'
                     row['Isinternal'] = 'TRUE'  # Set to TRUE when isCombo is TRUE
+                    row['PLU'] = f"MD{row['PLU']}"  # Prefix with MD for meal deals
                     row['Imageurl'] = get_image_url(row.get('ProductImageID', ''), image_export_data)
                     row['Category'] = ''
                     output_data.append(row)
@@ -175,6 +176,7 @@ if product_file and image_file:
                     row['Producttype'] = 'PRODUCT'
                     row['isCombo'] = 'FALSE'
                     row['Isinternal'] = 'FALSE'  # FALSE for regular products
+                    row['PLU'] = f"P{row['PLU']}"  # Prefix with P for regular products
                     row['Imageurl'] = get_image_url(row.get('ProductImageID', ''), image_export_data)
                     row['Category'] = ''
                     output_data.append(row)
@@ -203,6 +205,7 @@ if product_file and image_file:
                     row['Producttype'] = 'MODIFIER'
                     row['isCombo'] = 'FALSE'
                     row['Isinternal'] = ''  # Blank for modifiers
+                    row['PLU'] = f"M{row['PLU']}"  # Prefix with M for modifiers
                     output_data.append(row)
                 
                 # STEP 5: MODIFIER GROUP
@@ -233,6 +236,7 @@ if product_file and image_file:
                     row['isUpsell'] = 'FALSE'
                     row['isCombo'] = ''
                     row['Isinternal'] = ''  # Blank for modifier groups
+                    row['PLU'] = f"MG{row['PLU']}"  # Prefix with MG for modifier groups
                     output_data.append(row)
                 
                 # STEP 6: UPSELL GROUP
@@ -254,6 +258,7 @@ if product_file and image_file:
                         row['isUpsell'] = 'TRUE'
                         row['isCombo'] = ''
                         row['Isinternal'] = ''  # Blank for upsell groups
+                        row['PLU'] = f"UG{row['PLU']}"  # Prefix with UG for upsell groups
                         output_data.append(row)
                 
                 # FINAL PASS: CATEGORY POPULATION
@@ -344,7 +349,7 @@ if product_file and image_file:
                 st.exception(e)
 
 else:
-    st.info("👆 Please upload both JSON filez to begin conversion.")
+    st.info("👆 Please upload both JSON files to begin conversion.")
 
 # Footer
 st.markdown("---")
