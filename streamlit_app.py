@@ -71,42 +71,6 @@ if product_file and image_file:
                 progress_bar = st.progress(0)
                 status_text = st.empty()
                 
-                # STEP 0: BUILD PLU MAPPING (original_id -> prefixed_plu)
-                status_text.text("Step 0/6: Building PLU mapping...")
-                progress_bar.progress(5)
-                
-                plu_map = {}
-                
-                # Map meal sequences (PRODUCT with isCombo TRUE) -> MD prefix
-                for meal_sequence in product_export_data.get('reference', {}).get('meal_sequence', []):
-                    original_id = str(meal_sequence.get('id', ''))
-                    plu_map[original_id] = f"MD{original_id}"
-                
-                # Map regular products (PRODUCT with isCombo FALSE) -> P prefix
-                for product in product_export_data.get('reference', {}).get('product', []):
-                    original_id = str(product.get('id', ''))
-                    plu_map[original_id] = f"P{original_id}"
-                
-                # Map modifiers (MODIFIER) -> M prefix
-                for choice in product_export_data.get('reference', {}).get('product_option_choice', []):
-                    original_id = str(choice.get('id', ''))
-                    plu_map[original_id] = f"M{original_id}"
-                
-                # Map modifier groups (MODIFIER_GROUP with isUpsell FALSE) -> MG prefix
-                for option in product_export_data.get('reference', {}).get('product_option', []):
-                    original_id = str(option.get('id', ''))
-                    plu_map[original_id] = f"MG{original_id}"
-                
-                # Map upsell groups (MODIFIER_GROUP with isUpsell TRUE) -> UG prefix
-                for suggestion in product_export_data.get('reference', {}).get('product_suggestion', []):
-                    if suggestion.get('type') == 'ADDITIONAL':
-                        original_id = str(suggestion.get('id', ''))
-                        plu_map[original_id] = f"UG{original_id}"
-                
-                # Helper function to convert a list of IDs to prefixed PLUs
-                def map_subproducts(id_list):
-                    return ','.join([plu_map.get(str(id), str(id)) for id in id_list if id])
-                
                 # STEP 1: CREATE BUNDLE GROUPS FOR MEAL DEALS
                 status_text.text("Step 1/6: Creating bundle groups...")
                 progress_bar.progress(10)
@@ -120,19 +84,18 @@ if product_file and image_file:
                         bundle_group['Name_es'] = ''  # Blank for bundles
                         bundle_group['Name_fr'] = ''  # Blank for bundles
                         
-                        # Create bundle PLU and add to mapping
+                        # Store original PLU (will be prefixed later based on output columns)
                         bundle_plu = f"{meal_sequence['id']}-{step_index}"
-                        plu_map[bundle_plu] = bundle_plu  # Bundles don't get prefixed
                         bundle_group['PLU'] = bundle_plu
                         bundle_group['Multiple'] = 1  # Always 1 for bundles
                         
-                        # Collect subproduct IDs and map them to prefixed PLUs
+                        # Collect subproduct IDs (original IDs, will be mapped later)
                         choices = item.get('choices', [])
                         subproduct_ids = [str(choice.get('reference_id', '')) for choice in choices if choice.get('reference_id')]
                         products = item.get('product_suggestion', {}).get('products', [])
                         subproduct_ids.extend([str(p.get('reference_id', '')) for p in products if p.get('reference_id')])
                         
-                        bundle_group['Subproducts'] = map_subproducts(subproduct_ids)
+                        bundle_group['Subproducts'] = ','.join(subproduct_ids)
                         bundle_group['Max'] = 1
                         bundle_group['Min'] = 1
                         bundle_group['Producttype'] = 'BUNDLE'
@@ -153,9 +116,8 @@ if product_file and image_file:
                     row['Name_es'] = get_lang_text(meal_sequence.get('name'), 'es_ES')
                     row['Name_fr'] = get_lang_text(meal_sequence.get('name'), 'fr_FR')
                     
-                    # Use prefixed PLU from mapping
-                    original_id = str(meal_sequence.get('id', ''))
-                    row['PLU'] = plu_map.get(original_id, original_id)
+                    # Store original PLU (will be prefixed later)
+                    row['PLU'] = str(meal_sequence.get('id', ''))
                     
                     miniature_picture_ref = None
                     for pic in meal_sequence.get('pictures', []):
@@ -166,7 +128,7 @@ if product_file and image_file:
                     row['ProductImageID'] = miniature_picture_ref or ''
                     row['Price'] = meal_sequence.get('price', 0) / 100 if meal_sequence.get('price') else ''
                     
-                    # Get matching bundle PLUs (bundles are not prefixed)
+                    # Get matching bundle PLUs (original IDs, will be mapped later)
                     matching_bundles = [bg['PLU'] for bg in bundle_groups if bg['PLU'].startswith(f"{meal_sequence['id']}-")]
                     row['Subproducts'] = ','.join(matching_bundles)
                     
@@ -199,9 +161,8 @@ if product_file and image_file:
                     row['Name_es'] = get_lang_text(product.get('name'), 'es_ES')
                     row['Name_fr'] = get_lang_text(product.get('name'), 'fr_FR')
                     
-                    # Use prefixed PLU from mapping
-                    original_id = str(product.get('id', ''))
-                    row['PLU'] = plu_map.get(original_id, original_id)
+                    # Store original PLU (will be prefixed later)
+                    row['PLU'] = str(product.get('id', ''))
                     
                     miniature_picture_ref = None
                     for pic in product.get('pictures', []):
@@ -212,9 +173,9 @@ if product_file and image_file:
                     row['ProductImageID'] = miniature_picture_ref or ''
                     row['Price'] = product.get('price', 0) / 100 if product.get('price') else ''
                     
-                    # Map subproducts (options) to prefixed PLUs
+                    # Store original subproduct IDs (will be mapped later)
                     option_ids = [str(opt.get('reference_id', '')) for opt in product.get('options', []) if opt.get('reference_id')]
-                    row['Subproducts'] = map_subproducts(option_ids)
+                    row['Subproducts'] = ','.join(option_ids)
                     
                     row['Description'] = get_lang_text(product.get('description'), 'fr_FR')
                     row['Description_en'] = get_lang_text(product.get('description'), 'en_GB')
@@ -243,9 +204,8 @@ if product_file and image_file:
                     row['Name_es'] = get_lang_text(choice.get('name'), 'es_ES')
                     row['Name_fr'] = get_lang_text(choice.get('name'), 'fr_FR')
                     
-                    # Use prefixed PLU from mapping
-                    original_id = str(choice.get('id', ''))
-                    row['PLU'] = plu_map.get(original_id, original_id)
+                    # Store original PLU (will be prefixed later)
+                    row['PLU'] = str(choice.get('id', ''))
                     
                     # Always set to 0 if no price for MODIFIER
                     row['Price'] = choice.get('price', 0) / 100 if choice.get('price') else 0
@@ -283,13 +243,12 @@ if product_file and image_file:
                     row['Name_es'] = get_lang_text(option.get('name'), 'es_ES')
                     row['Name_fr'] = get_lang_text(option.get('name'), 'fr_FR')
                     
-                    # Use prefixed PLU from mapping
-                    original_id = str(option.get('id', ''))
-                    row['PLU'] = plu_map.get(original_id, original_id)
+                    # Store original PLU (will be prefixed later)
+                    row['PLU'] = str(option.get('id', ''))
                     
-                    # Map subproducts (choices) to prefixed PLUs
+                    # Store original subproduct IDs (will be mapped later)
                     choice_ids = [str(c.get('reference_id', '')) for c in option.get('choices', []) if c.get('reference_id')]
-                    row['Subproducts'] = map_subproducts(choice_ids)
+                    row['Subproducts'] = ','.join(choice_ids)
                     
                     row['Max'] = option.get('max_allowed', '')
                     row['Min'] = option.get('min_required', '')
@@ -311,13 +270,12 @@ if product_file and image_file:
                         row['Name_es'] = get_lang_text(suggestion.get('name'), 'es_ES')
                         row['Name_fr'] = get_lang_text(suggestion.get('name'), 'fr_FR')
                         
-                        # Use prefixed PLU from mapping
-                        original_id = str(suggestion.get('id', ''))
-                        row['PLU'] = plu_map.get(original_id, original_id)
+                        # Store original PLU (will be prefixed later)
+                        row['PLU'] = str(suggestion.get('id', ''))
                         
-                        # Map subproducts (products) to prefixed PLUs
+                        # Store original subproduct IDs (will be mapped later)
                         product_ids = [str(p.get('reference_id', '')) for p in suggestion.get('products', []) if p.get('reference_id')]
-                        row['Subproducts'] = map_subproducts(product_ids)
+                        row['Subproducts'] = ','.join(product_ids)
                         
                         row['Max'] = 99
                         row['Min'] = 0
@@ -327,9 +285,9 @@ if product_file and image_file:
                         row['Isinternal'] = ''  # Blank for upsell groups
                         output_data.append(row)
                 
-                # FINAL PASS: CATEGORY POPULATION
-                status_text.text("Finalizing: Adding categories...")
-                progress_bar.progress(95)
+                # STEP 7: CATEGORY POPULATION
+                status_text.text("Step 7/8: Adding categories...")
+                progress_bar.progress(85)
                 
                 categories = {}
                 for category in product_export_data.get('reference', {}).get('category', []):
@@ -345,6 +303,52 @@ if product_file and image_file:
                                 found_category = name
                                 break
                         row['Category'] = found_category
+                
+                # STEP 8: APPLY PLU PREFIXES BASED ON OUTPUT COLUMNS
+                status_text.text("Step 8/8: Applying PLU prefixes...")
+                progress_bar.progress(92)
+                
+                # Build PLU mapping from output data based on row properties
+                plu_map = {}
+                for row in output_data:
+                    original_plu = str(row.get('PLU', ''))
+                    if not original_plu:
+                        continue
+                    
+                    producttype = row.get('Producttype', '')
+                    is_combo = row.get('isCombo', '')
+                    is_upsell = row.get('isUpsell', '')
+                    
+                    # Determine prefix based on output columns
+                    if producttype == 'MODIFIER':
+                        prefixed_plu = f"M{original_plu}"
+                    elif producttype == 'PRODUCT' and is_combo == 'FALSE':
+                        prefixed_plu = f"P{original_plu}"
+                    elif producttype == 'PRODUCT' and is_combo == 'TRUE':
+                        prefixed_plu = f"MD{original_plu}"
+                    elif producttype == 'MODIFIER_GROUP' and is_upsell == 'FALSE':
+                        prefixed_plu = f"MG{original_plu}"
+                    elif producttype == 'MODIFIER_GROUP' and is_upsell == 'TRUE':
+                        prefixed_plu = f"UG{original_plu}"
+                    elif producttype == 'BUNDLE':
+                        prefixed_plu = original_plu  # Bundles don't get prefixed
+                    else:
+                        prefixed_plu = original_plu  # Default: no prefix
+                    
+                    plu_map[original_plu] = prefixed_plu
+                
+                # Apply prefixes to PLUs and update Subproducts
+                for row in output_data:
+                    original_plu = str(row.get('PLU', ''))
+                    if original_plu and original_plu in plu_map:
+                        row['PLU'] = plu_map[original_plu]
+                    
+                    # Update Subproducts to use prefixed PLUs
+                    subproducts = row.get('Subproducts', '')
+                    if subproducts:
+                        original_ids = subproducts.split(',')
+                        prefixed_ids = [plu_map.get(id.strip(), id.strip()) for id in original_ids if id.strip()]
+                        row['Subproducts'] = ','.join(prefixed_ids)
                 
                 # GENERATE OUTPUT with new order
                 output_headers = [
