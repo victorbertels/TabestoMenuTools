@@ -43,6 +43,15 @@ if product_file and image_file:
                 # Load the JSON files
                 product_export_data = json.load(product_file)
                 image_data = json.load(image_file)
+                
+                # Handle both file formats: with or without 'data' wrapper
+                # If there's a 'data' key at top level, unwrap it
+                if 'data' in product_export_data and 'reference' not in product_export_data:
+                    product_export_data = product_export_data['data']
+                
+                if 'data' in image_data and 'pictures' not in image_data:
+                    image_data = image_data['data']
+                
                 image_export_data = image_data.get('pictures', [])
                 
                 output_data = []
