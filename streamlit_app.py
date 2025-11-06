@@ -2,7 +2,6 @@ import streamlit as st
 import json
 import re
 import io
-import os
 
 # Page configuration
 st.set_page_config(
@@ -11,39 +10,14 @@ st.set_page_config(
     layout="centered"
 )
 
-# Counter management
-COUNTER_FILE = "usage_counter.json"
-
-def load_counter():
-    """Load the usage counter from file"""
-    if os.path.exists(COUNTER_FILE):
-        try:
-            with open(COUNTER_FILE, 'r') as f:
-                data = json.load(f)
-                return data.get('count', 0)
-        except:
-            return 0
-    return 0
-
-def increment_counter():
-    """Increment and save the usage counter"""
-    count = load_counter()
-    count += 1
-    with open(COUNTER_FILE, 'w') as f:
-        json.dump({'count': count}, f)
-    return count
-
-# Display header with counter
+# Display header
 st.title("🍽️ Tabesto Menu Converter 2.0")
 
-# Display usage counter prominently
-current_count = load_counter()
-st.markdown(f"""
-<div style='text-align: center; margin: 20px 0;'>
-    <div style='background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 20px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);'>
-        <div style='color: white; font-size: 1.8em; margin-bottom: 15px; font-weight: 600;'>Built by MALI & V1C</div>
-        <div style='color: rgba(255,255,255,0.9); font-size: 1em; margin-bottom: 5px;'>Total Conversions</div>
-        <div style='color: white; font-size: 2.5em; font-weight: bold; font-family: monospace;'>{current_count:,}</div>
+# Display built by box
+st.markdown("""
+<div style='text-align: center; margin: 20px auto; max-width: 400px;'>
+    <div style='background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 18px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);'>
+        <div style='color: white; font-size: 1.5em; font-weight: 600;'>Built by MALI & V1C</div>
     </div>
 </div>
 """, unsafe_allow_html=True)
@@ -482,12 +456,8 @@ if product_file and image_file:
                 progress_bar.progress(100)
                 status_text.text("✅ Conversion complete!")
                 
-                # Increment usage counter
-                new_count = increment_counter()
-                
                 # Success message
                 st.success(f"✅ Successfully converted {len(output_data)} rows!")
-                st.info(f"🎉 This is conversion #{new_count:,}!")
                 
                 # Display statistics
                 col1, col2, col3 = st.columns(3)
