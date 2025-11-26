@@ -54,6 +54,124 @@ if product_file and image_file:
                 
                 image_export_data = image_data.get('pictures', [])
                 
+                # Tabesto allergen ID to name mapping
+                tabesto_allergens = {
+                    0: "No Allergens",
+                    1: "Gluten",
+                    2: "Nuts",
+                    3: "Crustaceans",
+                    4: "Celery",
+                    5: "Eggs",
+                    6: "Mustard",
+                    7: "Fish",
+                    8: "Soybeans",
+                    9: "Milk (including lactose)",
+                    10: "Sulphur dioxide/sulphites",
+                    11: "Sesame",
+                    12: "Lupin",
+                    13: "Peanuts",
+                    14: "Molluscs",
+                    15: "Almonds",
+                    16: "Barley",
+                    17: "Brazil nut",
+                    18: "Cashew",
+                    19: "Hazelnut",
+                    20: "Macadamia",
+                    21: "Oats",
+                    22: "Pecan",
+                    23: "Pistachio",
+                    24: "Rye",
+                    25: "Walnut",
+                    26: "Pine nut",
+                    27: "Wheat"
+                }
+                
+                # Tabesto allergen name to Deliverect allergen name (uppercase) mapping
+                tabesto_to_deliverect_name = {
+                    "Gluten": "GLUTEN",
+                    "Nuts": "NUTS",
+                    "Crustaceans": "CRUSTACEANS",
+                    "Celery": "CELERY",
+                    "Eggs": "EGGS",
+                    "Mustard": "MUSTARD",
+                    "Fish": "FISH",
+                    "Soybeans": "SOYA",
+                    "Milk (including lactose)": "MILK",
+                    "Sulphur dioxide/sulphites": "SULPHITES",
+                    "Sesame": "SESAME",
+                    "Lupin": "LUPIN",
+                    "Peanuts": "PEANUTS",
+                    "Molluscs": "MOLLUSCS",
+                    "Almonds": "ALMONDS",
+                    "Barley": "BARLEY",
+                    "Brazil nut": "BRAZIL_NUTS",
+                    "Cashew": "CASHEW",
+                    "Hazelnut": "HAZELNUTS",
+                    "Macadamia": "MACADAMIA",
+                    "Oats": "OATS",
+                    "Pecan": "PECAN",
+                    "Pistachio": "PISTACHIOS",
+                    "Rye": "RYE",
+                    "Walnut": "WALNUTS",
+                    "Pine nut": "NUTS",  # Maps to generic NUTS
+                    "Wheat": "WHEAT"
+                }
+                
+                # Helper function to convert Tabesto allergen ID to name
+                def get_tabesto_allergen_name(allergen_id):
+                    """Convert Tabesto allergen ID to name"""
+                    return tabesto_allergens.get(allergen_id, f"Unknown({allergen_id})")
+                
+                # Helper function to convert Tabesto allergen name to Deliverect name (uppercase)
+                def get_deliverect_allergen_name(tabesto_name):
+                    """Convert Tabesto allergen name to Deliverect name in uppercase"""
+                    return tabesto_to_deliverect_name.get(tabesto_name, None)
+                
+                # Helper function to extract allergen IDs from allergen data and convert to Deliverect names
+                def extract_allergen_ids(allergens):
+                    """Extract allergen IDs from allergen objects, convert to Tabesto names, then to Deliverect names (uppercase)"""
+                    if not allergens:
+                        return []
+                    deliverect_names = []
+                    for alg in allergens:
+                        allergen_id = alg.get('id')
+                        if allergen_id is not None:
+                            # Skip "No Allergens" (ID 0)
+                            if allergen_id == 0:
+                                continue
+                            # Convert Tabesto ID to name
+                            tabesto_name = get_tabesto_allergen_name(allergen_id)
+                            # Convert Tabesto name to Deliverect name (uppercase)
+                            deliverect_name = get_deliverect_allergen_name(tabesto_name)
+                            # Only add if we have a valid Deliverect name
+                            if deliverect_name is not None:
+                                deliverect_names.append(deliverect_name)
+                    return deliverect_names
+                
+                # Helper function to get allergens for a product ID
+                def get_allergens_for_product(product_id):
+                    if product_id is None:
+                        return []
+                    product_ref = product_export_data.get('reference', {})
+                    for product in product_ref.get('product', []):
+                        if product.get('id') == product_id:
+                            return extract_allergen_ids(product.get('allergens', []))
+                    return []
+                
+                # Helper function to get allergens for a choice ID (product_option_choice)
+                def get_allergens_for_choice(choice_id):
+                    if choice_id is None:
+                        return []
+                    product_ref = product_export_data.get('reference', {})
+                    for choice in product_ref.get('product_option_choice', []):
+                        if choice.get('id') == choice_id:
+                            return extract_allergen_ids(choice.get('allergens', []))
+                    # Also check product_choice for modifiers
+                    for choice in product_ref.get('product_choice', []):
+                        if choice.get('id') == choice_id:
+                            return extract_allergen_ids(choice.get('allergens', []))
+                    return []
+                
                 output_data = []
                 
                 # Helper function to find a specific language text
@@ -100,9 +218,9 @@ if product_file and image_file:
                     for step_index, item in enumerate(meal_sequence.get('items', [])):
                         bundle_group = create_base_row()
                         bundle_group['Name'] = 'Choose your option'
-                        bundle_group['Name_en'] = ''  # Blank for bundles
-                        bundle_group['Name_es'] = ''  # Blank for bundles
-                        bundle_group['Name_fr'] = ''  # Blank for bundles
+                        bundle_group['Name_en'] = 'Choose your option'
+                        bundle_group['Name_es'] = 'Elige tu opción'
+                        bundle_group['Name_fr'] = 'Choisissez votre option'
                         
                         # Store original PLU (will be prefixed later based on output columns)
                         bundle_plu = f"{meal_sequence['id']}-{step_index}"
@@ -146,7 +264,7 @@ if product_file and image_file:
                             break
                     
                     row['ProductImageID'] = miniature_picture_ref or ''
-                    row['Price'] = meal_sequence.get('price', 0) / 100 if meal_sequence.get('price') else ''
+                    row['Price'] = meal_sequence.get('price', 0) / 100 if meal_sequence.get('price') else 0
                     
                     # Get matching bundle PLUs (original IDs, will be mapped later)
                     matching_bundles = [bg['PLU'] for bg in bundle_groups if bg['PLU'].startswith(f"{meal_sequence['id']}-")]
@@ -162,7 +280,9 @@ if product_file and image_file:
                     row['Description_en'] = get_lang_text(product_ref.get('description') if product_ref else None, 'en_GB')
                     row['Description_es'] = get_lang_text(product_ref.get('description') if product_ref else None, 'es_ES')
                     row['Description_fr'] = get_lang_text(product_ref.get('description') if product_ref else None, 'fr_FR')
-                    row['ProductTags'] = ','.join(product_ref.get('allergens', [])) if product_ref else ''
+                    product_id = meal_sequence.get('id')
+                    allergens = get_allergens_for_product(product_id)
+                    row['ProductTags'] = ','.join(allergens) if allergens else ''
                     row['Producttype'] = 'PRODUCT'
                     row['isCombo'] = 'TRUE'
                     row['Isinternal'] = 'TRUE'  # Set to TRUE when isCombo is TRUE
@@ -191,7 +311,7 @@ if product_file and image_file:
                             break
                     
                     row['ProductImageID'] = miniature_picture_ref or ''
-                    row['Price'] = product.get('price', 0) / 100 if product.get('price') else ''
+                    row['Price'] = product.get('price', 0) / 100 if product.get('price') else 0
                     
                     # Store original subproduct IDs (will be mapped later)
                     option_ids = [str(opt.get('reference_id', '')) for opt in product.get('options', []) if opt.get('reference_id')]
@@ -205,7 +325,9 @@ if product_file and image_file:
                     quantity_info = product.get('modifier_groups', {}).get('quantity_info', {}).get('quantity', {})
                     row['Max'] = quantity_info.get('max_permitted', '')
                     row['Min'] = quantity_info.get('min_permitted', '')
-                    row['ProductTags'] = ','.join(product.get('allergens', []))
+                    product_id = product.get('id')
+                    allergens = get_allergens_for_product(product_id)
+                    row['ProductTags'] = ','.join(allergens) if allergens else ''
                     row['Producttype'] = 'PRODUCT'
                     row['isCombo'] = 'FALSE'
                     row['Isinternal'] = 'FALSE'  # FALSE for regular products
@@ -236,7 +358,9 @@ if product_file and image_file:
                             choice_ref = pc
                             break
                     
-                    row['ProductTags'] = ','.join(choice_ref.get('allergens', [])) if choice_ref else ''
+                    choice_id = choice.get('id')
+                    allergens = get_allergens_for_choice(choice_id)
+                    row['ProductTags'] = ','.join(allergens) if allergens else ''
                     row['Producttype'] = 'MODIFIER'
                     row['isCombo'] = 'FALSE'
                     row['Isinternal'] = ''  # Blank for modifiers
@@ -248,17 +372,8 @@ if product_file and image_file:
                 
                 for option in product_export_data.get('reference', {}).get('product_option', []):
                     row = create_base_row()
-                    product_ref_for_name = None
-                    for product in product_export_data.get('reference', {}).get('product', []):
-                        if product.get('id') == option.get('id'):
-                            product_ref_for_name = product
-                            break
-                    
-                    if product_ref_for_name:
-                        row['Name'] = get_lang_text(product_ref_for_name.get('name'), 'fr_FR')
-                    else:
-                        row['Name'] = get_lang_text(option.get('name'), 'fr_FR')
-                    
+                    # For MODIFIER_GROUP, always use the option's name, not the product name
+                    row['Name'] = get_lang_text(option.get('name'), 'fr_FR')
                     row['Name_en'] = get_lang_text(option.get('name'), 'en_GB')
                     row['Name_es'] = get_lang_text(option.get('name'), 'es_ES')
                     row['Name_fr'] = get_lang_text(option.get('name'), 'fr_FR')
